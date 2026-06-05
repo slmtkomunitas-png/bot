@@ -28,7 +28,7 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 # ══════════════════════════════════════════════════════════════════════
 
 BOT_TOKEN = "8975773812:AAFOXR6W6sVf_uxU_hUXZvWFJEgeQYfsniA"   # <-- REVOKE DAN GANTI!!!
-ADMIN_IDS = [8975773812]   # Ganti dengan ID Telegram Anda
+ADMIN_IDS = [7381245861]   # Ganti dengan ID Telegram Anda
 
 COOKIES_DIR = "vault"
 PROXY_FILE = "proxy.txt"
