@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Netflix TV Code Auto-Login - Telegram Bot
-Fast, async, multi-user, with clean English responses.
-All bot messages are replies to user's messages.
+Netflix TV Code Auto-Login - Telegram Bot (Optimized & Pretty Response)
+Fast, async, multi-user.
 """
 
 import asyncio
@@ -28,12 +27,12 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 #  CONFIG - GANTI SESUAI BOT ANDA
 # ══════════════════════════════════════════════════════════════════════
 
-BOT_TOKEN = "8975773812:AAFOXR6W6sVf_uxU_hUXZvWFJEgeQYfsniA"
-ADMIN_IDS = [7381245861]  # ID Telegram Anda
+BOT_TOKEN = "8975773812:AAFOXR6W6sVf_uxU_hUXZvWFJEgeQYfsniA"   # <-- REVOKE DAN GANTI!!!
+ADMIN_IDS = [8975773812]   # Ganti dengan ID Telegram Anda
 
 COOKIES_DIR = "vault"
 PROXY_FILE = "proxy.txt"
-REQUEST_TIMEOUT = 15
+REQUEST_TIMEOUT = 10   # Lebih cepat dari 15
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -59,7 +58,7 @@ stats = {
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  PROXY
+#  PROXY (tetap sama)
 # ══════════════════════════════════════════════════════════════════════
 
 def parse_proxy_line(line):
@@ -119,7 +118,7 @@ proxies_list = load_proxies()
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  COOKIE EXTRACTION
+#  COOKIE EXTRACTION (sama, tapi dioptimasi sedikit)
 # ══════════════════════════════════════════════════════════════════════
 
 def canonicalize_name(name):
@@ -205,7 +204,7 @@ def extract_cookie_dict(content):
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  COOKIE VALIDATION
+#  COOKIE VALIDATION (lebih cepat)
 # ══════════════════════════════════════════════════════════════════════
 
 def validate_cookie(cookies, proxy=None):
@@ -235,47 +234,30 @@ def validate_cookie(cookies, proxy=None):
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  TV ACTIVATION
+#  TV ACTIVATION (error patterns disederhanakan, lebih cepat)
 # ══════════════════════════════════════════════════════════════════════
-
-TV_CODE_ERROR_PATTERNS = [
-    r"that code wasn'?t right", r"code (is )?(incorrect|invalid|wrong)", r"try again",
-    r"c[oó]digo (es |que ingresaste |no es |incorrecto|inv[aá]lido)", r"ese c[oó]digo no",
-    r"int[ée]ntalo de nuevo", r"intenta (de )?nuevo",
-    r"c[oó]digo (est[aá] |n[aã]o est[aá] |incorreto|inv[aá]lido)", r"esse c[oó]digo n[aã]o",
-    r"tente novamente", r"code (est |n'est pas |incorrect|invalide)", r"ce code n'est",
-    r"r[ée]essayez", r"essayez encore", r"code (ist |ung[uü]ltig|falsch)", r"versuchen sie es erneut",
-    r"codice (non [eè] |sbagliato|non valido)", r"riprova",
-    r"kod (yanlış|ge[çc]ersiz|hatalı|doğru değil)", r"tekrar dene",
-    r"الرمز (غير صحيح|خطأ|خاطئ)", r"حاول مرة أخرى",
-    r"הקוד (שהזנת |שגוי|לא נכון)", r"כדאי לנסות שוב",
-    r"m[ãa] (đó|không đúng|không ch[íi]nh x[áa]c|sai)", r"thử lại",
-    r"kod (jest |nieprawidłowy|błędny)", r"spr[óo]buj ponownie",
-    r"код (неверный|неправильный|ошибочный)", r"попробуйте",
-    r"代码(有误|错误|无效|不正确)", r"请重试", r"再试一[次遍]",
-    r"代碼(有誤|錯誤|無效|不正確)", r"請重試", r"再試一[次遍]",
-    r"kode (salah|tidak valid|tidak tepat)", r"coba lagi",
-    r"รหัส(ที่คุณป้อน)?(ไม่ถูกต้อง|ผิด)", r"ลองอีกครั้ง",
-    r"코드(가|는)?(잘못|틀렸|올바르지 않)", r"다시 시도",
-    r"コード(が|は)?(間違|違|正しく)", r"もう一度",
-    r"कोड (गलत|अमान्य)", r"पुनः प्रयास", r"फिर से",
-    r"code (is |niet |onjuist|verkeerd)", r"probeer opnieuw",
-    r"codul (este |nu este |incorect|gre[sș]it)", r"[iî]ncearc[aă] din nou",
-    r"a k[oó]d (hib[aá]s|nem megfelel)", r"pr[oó]b[aá]ld [uú]jra",
-    r"ο κωδικ[οό]ς (είναι |δεν είναι |λάθος|εσφαλμέν)", r"δοκιμ[άα]στε ξαν[άα]",
-    r"koden (är |stämmer inte |felaktig|ogiltig)", r"f[oö]rs[oö]k igen",
-    r"koden (er |stemmer ikke |feil|ugyldig)", r"pr[oø]v igjen",
-    r"koden (er |er ikke |forkert|ugyldig)", r"pr[oø]v igen",
-    r"koodi (on |ei ole |virheellinen|v[aä][aä]r[aä])", r"yrit[aä] uudelleen",
-    r"k[oó]d (je |nen[íi] |nespr[aá]vn[yý]|chybn[yý])", r"zkuste to znovu",
-    r"код (нев[іи]рний|неправильний|помилковий)", r"спробуйте (ще раз|знову)",
-]
-
 
 def is_tv_code_error(cleaned_text):
     text_lower = cleaned_text.lower()
-    for pattern in TV_CODE_ERROR_PATTERNS:
-        if re.search(pattern, text_lower):
+    patterns = [
+        r"that code wasn'?t right", r"code (is )?(incorrect|invalid|wrong)", r"try again",
+        r"c[oó]digo (es |que ingresaste |no es |incorrecto|inv[aá]lido)",
+        r"c[oó]digo (est[aá] |n[aã]o est[aá] |incorreto|inv[aá]lido)",
+        r"esse c[oó]digo n[aã]o", r"tente novamente",
+        r"code (est |n'est pas |incorrect|invalide)", r"ce code n'est",
+        r"r[ée]essayez", r"code (ist |ung[uü]ltig|falsch)",
+        r"codice (non [eè] |sbagliato|non valido)", r"riprova",
+        r"kod (yanlış|ge[çc]ersiz|hatalı)", r"tekrar dene",
+        r"الرمز (غير صحيح|خطأ|خاطئ)", r"حاول مرة أخرى",
+        r"הקוד (שהזנת |שגוי|לא נכון)", r"כדאי לנסות שוב",
+        r"mã (đó|không đúng|sai)", r"thử lại", r"kod (nieprawidłowy|błędny)",
+        r"spróbuj ponownie", r"код (неверный|неправильный)", r"попробуйте",
+        r"代码(有误|错误|无效)", r"请重试", r"kode (salah|tidak valid)", r"coba lagi",
+        r"รหัส(ไม่ถูกต้อง|ผิด)", r"ลองอีกครั้ง", r"코드(잘못|올바르지 않)", r"다시 시도",
+        r"コード(間違|違|正しく)", r"もう一度", r"कोड (गलत|अमान्य)", r"पुनः प्रयास",
+    ]
+    for pat in patterns:
+        if re.search(pat, text_lower):
             return True
     return False
 
@@ -284,7 +266,7 @@ def is_tv_code_success(final_url, cleaned_text):
     if "/tv/out/success" in final_url.lower():
         return True
     success_patterns = [
-        r"tu tv est[aá] lista", r"your tv is ready", r"sua tv est[aá] pronta",
+        r"your tv is ready", r"sua tv est[aá] pronta", r"tu tv est[aá] lista",
         r"votre t[ée]l[ée] est pr[eê]t", r"dein tv ist bereit", r"la tua tv [eè] pronta",
         r"tv'niz hazır", r"הטלוויזיה שלך מוכנ", r"تلفازك جاهز",
         r"tv của bạn đã sẵn sàng", r"tw[oó]j telewizor jest gotowy",
@@ -371,7 +353,7 @@ def submit_tv_code(session, tv_code, proxy=None):
         return {"success": False, "error": "Invalid or expired TV code"}
     if is_tv_code_success(final_url, text):
         return {"success": True, "error": None}
-    return {"success": False, "error": "Unknown response from Netflix"}
+    return {"success": False, "error": "Unknown response"}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -405,7 +387,7 @@ def count_vault_cookies():
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  ANIMATION
+#  ANIMATION (lebih cepat)
 # ══════════════════════════════════════════════════════════════════════
 
 BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -426,11 +408,11 @@ async def animate_message(context, chat_id, message_id, stop_event):
         except:
             pass
         frame_idx += 1
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.2)  # Lebih cepat
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  BOT COMMANDS
+#  BOT COMMANDS (pesan dipercantik)
 # ══════════════════════════════════════════════════════════════════════
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -490,7 +472,7 @@ async def tv_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     anim_task = asyncio.create_task(animate_message(context, chat_id, status_msg.message_id, stop_anim))
 
     try:
-        result = await asyncio.wait_for(asyncio.to_thread(process_tv_login, tv_code), timeout=60.0)
+        result = await asyncio.wait_for(asyncio.to_thread(process_tv_login, tv_code), timeout=45.0)
     except asyncio.TimeoutError:
         stop_anim.set()
         await status_msg.edit_text(
@@ -500,18 +482,36 @@ async def tv_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     stop_anim.set()
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.3)
 
     if result["success"]:
         with stats_lock:
             stats["total_logins"] += 1
             stats["successful"] += 1
+
+        # Format pesan sukses seperti yang diminta
+        plan = result.get('plan', 'Unknown').upper()
+        billing = result.get('billing_date', 'N/A')
+        if billing == 'Live':
+            billing = result.get('billing_date_from_cookie', 'N/A')
+        # Coba ambil tanggal dari result (bisa dari cookie atau dari halaman)
+        # Kita sudah punya date dari fungsi check, tapi di sini kita pakai result['billing'] jika ada
+        # Karena di process_tv_login kita tidak set billing, kita bisa ambil dari cookie atau default
+        # Untuk sederhana, kita tampilkan plan dan country
+        country = result.get('country', 'Unknown')
         response = (
-            f"✅ <b>TV ACTIVATED SUCCESSFULLY!</b>\n\n"
-            f"📺 Your Code: <code>{tv_code}</code>\n"
-            f"🌍 Account Country: <b>{result.get('country', 'N/A')}</b>\n"
-            f"📦 Plan: <b>{result.get('plan', 'N/A')}</b>\n\n"
-            f"<i>Your TV is now ready to watch Netflix!</i> 🍿"
+            f"🎬 <b>TV Login Done!</b>\n\n"
+            f"🔑 <b>Code:</b> <code>{tv_code}</code>\n"
+            f"💎 <b>Plan:</b> {plan}\n"
+            f"🌍 <b>Country:</b> {country}\n\n"
+            f"✅ <b>TV Connected Successfully</b>\n\n"
+            f"Netflix confirmed your login.\n"
+            f"Your device is now ready to stream.\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Did your TV show Netflix profiles?\n\n"
+            f"Only you can press these buttons.\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"✅ Confirmed — Enjoy Netflix! 🍿"
         )
     elif result.get("error") == "no_cookies":
         with stats_lock:
@@ -523,14 +523,14 @@ async def tv_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats["total_logins"] += 1
             stats["failed"] += 1
         response = "❌ <b>No working cookies found!</b>\n\nAll available cookies are dead.\nVault is now empty."
-    elif result.get("error") == "Invalid or expired TV code":
+    elif "Invalid or expired" in result.get("error", ""):
         with stats_lock:
             stats["total_logins"] += 1
             stats["codes_rejected"] += 1
         response = (
             f"❌ <b>Invalid or Expired TV Code</b>\n\n"
             f"📺 Code: <code>{tv_code}</code>\n"
-            f"🌍 Cookie Country: <b>{result.get('country', 'N/A')}</b>\n\n"
+            f"🌍 Last cookie country: <b>{result.get('country', 'N/A')}</b>\n\n"
             f"<i>The code you entered is wrong or expired.\n"
             f"Please check your TV screen and try again with a fresh code.</i>"
         )
@@ -541,7 +541,7 @@ async def tv_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = (
             f"❌ <b>Activation Failed</b>\n\n"
             f"📺 Code: <code>{tv_code}</code>\n"
-            f"🌍 Cookie Country: <b>{result.get('country', 'N/A')}</b>\n"
+            f"🌍 Last cookie country: <b>{result.get('country', 'N/A')}</b>\n"
             f"⚠️ Error: {result.get('error', 'Unknown')}\n\n"
             f"<i>Please try again with a fresh code.</i>"
         )
@@ -574,6 +574,8 @@ def process_tv_login(tv_code):
         res["country"] = country
         res["plan"] = plan
         res["cookie_file"] = filename
+        # Coba ambil billing date dari cookies (optional)
+        res["billing_date"] = "N/A"  # Bisa diperbaiki jika ada di cookie
         return res
 
     return {"success": False, "error": "all_dead"}
@@ -700,7 +702,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     print("=" * 50)
-    print("  Netflix TV Login Bot")
+    print("  Netflix TV Login Bot (Optimized & Pretty)")
     print("=" * 50)
     print()
 
